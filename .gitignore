@@ -1,0 +1,13 @@
+# Logs
+*.log
+
+# Debug / diagnostic artifacts
+tail.txt
+logtail.txt
+ps.json
+ps.txt
+status_now.txt
+done_flag.txt
+
+# Editor settings
+.vscode/

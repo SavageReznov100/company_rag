@@ -1,0 +1,77 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    image: icsl-rag-backend:latest
+    ports:
+      - "8000:8000"
+    environment:
+      # Override the .env value so the container reaches Postgres by service name.
+      DATABASE_URL: postgresql+psycopg://rag:ragpassword@postgres:5432/rag
+    volumes:
+      # Persist uploaded/ingested files.
+      - backend_data:/app/data
+      # Mount the local .env read-only so `load_dotenv()` picks it up at startup
+      # (this keeps secrets out of the image and matches local dev behavior).
+      - ./backend/.env:/app/.env:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./client
+      args:
+        # The browser calls the backend directly, so use the host-reachable URL.
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    image: icsl-rag-frontend:latest
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis-insight:
+    image: redis/redisinsight:latest
+    ports:
+      - "5540:5540"
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: rag
+      POSTGRES_PASSWORD: ragpassword
+      POSTGRES_DB: rag
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rag -d rag"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  backend_data:
+  redis_data:
+  postgres_data:
